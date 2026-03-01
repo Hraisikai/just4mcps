@@ -1,0 +1,108 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-proxy
+  namespace: mcp-platform
+  labels:
+    app: mcp-proxy
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mcp-proxy
+  template:
+    metadata:
+      labels:
+        app: mcp-proxy
+    spec:
+      containers:
+        - name: mcp-proxy
+          image: your-registry.example.com/just4mcps/proxy:latest  # replaced by CI
+          ports:
+            - containerPort: 8000
+          env:
+            # Keycloak
+            - name: KEYCLOAK_URL
+              value: "https://your-keycloak.example.com"
+            - name: KEYCLOAK_REALM
+              value: "your-realm"
+            - name: KEYCLOAK_CLIENT_ID
+              value: "mcp-gateway"
+            - name: KEYCLOAK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: mcp-proxy-secrets
+                  key: keycloak-client-secret
+            - name: KEYCLOAK_GROUPS_CLAIM
+              value: "groups"
+            # Keycloak group paths that grant admin access to this gateway.
+            # Adjust these to match your Keycloak group structure.
+            - name: ADMIN_GROUPS
+              value: '["/admins"]'
+            # SurrealDB
+            - name: SURREAL_URL
+              valueFrom:
+                secretKeyRef:
+                  name: mcp-proxy-secrets
+                  key: surreal-url
+            - name: SURREAL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mcp-proxy-secrets
+                  key: surreal-user
+            - name: SURREAL_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: mcp-proxy-secrets
+                  key: surreal-pass
+            - name: SURREAL_NAMESPACE
+              value: "just4mcps"
+            - name: SURREAL_DATABASE
+              value: "mcp_gateway"
+            # App
+            # Public base URL for the gateway API — must include the /api prefix
+            # that your ingress stripPrefix middleware removes before forwarding.
+            - name: GATEWAY_PUBLIC_URL
+              value: "https://your-gateway.example.com/api"
+            - name: CORS_ORIGINS
+              value: '["https://your-gateway.example.com"]'
+            - name: CREDENTIAL_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mcp-proxy-secrets
+                  key: credential-encryption-key
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-proxy
+  namespace: mcp-platform
+  labels:
+    app: mcp-proxy
+spec:
+  selector:
+    app: mcp-proxy
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP

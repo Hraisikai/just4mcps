@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: surrealdb-data
+  namespace: mcp-platform
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  # Set this to your cluster's storage class, e.g.:
+  #   storageClassName: standard
+  #   storageClassName: longhorn
+  #   storageClassName: local-path

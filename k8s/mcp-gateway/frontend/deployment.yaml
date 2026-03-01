@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-frontend
+  namespace: mcp-platform
+  labels:
+    app: mcp-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mcp-frontend
+  template:
+    metadata:
+      labels:
+        app: mcp-frontend
+    spec:
+      containers:
+        - name: mcp-frontend
+          image: your-registry.example.com/just4mcps/frontend:latest
+          ports:
+            - containerPort: 80
+          env:
+            # nginx.conf uses ${GATEWAY_UPSTREAM} for its /api/ reverse-proxy block.
+            # Your ingress handles /api → mcp-proxy at the ingress level so nginx never
+            # actually receives those requests, but nginx resolves upstream hostnames at
+            # startup and will crash if the name doesn't exist in DNS.
+            - name: GATEWAY_UPSTREAM
+              value: "http://mcp-proxy:8000"
+            # All VITE_* vars are injected at container start by docker-entrypoint.sh
+            # into window.__env__ so the SPA can read them at runtime without a rebuild.
+            # /api is routed by your ingress to mcp-proxy with the prefix stripped.
+            - name: VITE_API_URL
+              value: "/api"
+            # Keycloak PKCE config — these are intentionally public (no client secret).
+            - name: VITE_KEYCLOAK_URL
+              value: "https://your-keycloak.example.com"
+            - name: VITE_KEYCLOAK_REALM
+              value: "your-realm"
+            - name: VITE_KEYCLOAK_CLIENT_ID
+              value: "mcp-gateway"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 10

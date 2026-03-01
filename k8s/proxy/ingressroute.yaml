@@ -1,0 +1,100 @@
+# Traefik IngressRoute for Just4MCPs
+# Adjust Host() matches to your domain and update the JWT JWKS URL.
+# If you use a different ingress controller, adapt accordingly.
+
+# Strip /api prefix before forwarding to mcp-proxy
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-api-prefix
+  namespace: mcp-platform
+spec:
+  stripPrefix:
+    prefixes:
+      - /api
+---
+# JWT middleware - validates token against Keycloak JWKS
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: keycloak-jwt-auth
+  namespace: mcp-platform
+spec:
+  plugin:
+    jwt:
+      jwksUrl: "https://your-keycloak.example.com/realms/your-realm/protocol/openid-connect/certs"
+      forwardHeaders:
+        Authorization: Authorization
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: mcp-platform
+  namespace: mcp-platform
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    # RFC 9728 / RFC 8414 OAuth discovery — served at the host root
+    # (no /api prefix, no JWT).  MCP clients hit these before they have
+    # a token to discover the authorization server.
+    - match: Host(`your-gateway.example.com`) && PathPrefix(`/.well-known/oauth-protected-resource`)
+      kind: Rule
+      priority: 40
+      services:
+        - name: mcp-proxy
+          port: 8000
+
+    - match: Host(`your-gateway.example.com`) && PathPrefix(`/.well-known/oauth-authorization-server`)
+      kind: Rule
+      priority: 40
+      services:
+        - name: mcp-proxy
+          port: 8000
+
+    # Auth endpoints: no JWT required — token exchange/proxy.
+    - match: Host(`your-gateway.example.com`) && PathPrefix(`/api/auth`)
+      kind: Rule
+      priority: 30
+      middlewares:
+        - name: strip-api-prefix
+          namespace: mcp-platform
+      services:
+        - name: mcp-proxy
+          port: 8000
+
+    # MCP protocol endpoints: no Traefik JWT — the app validates tokens
+    # itself and returns RFC 9728 WWW-Authenticate headers with
+    # resource_metadata for unauthenticated requests (OAuth discovery).
+    - match: Host(`your-gateway.example.com`) && PathPrefix(`/api/`) && PathRegexp(`^/api/[^/]+/mcp`)
+      kind: Rule
+      priority: 25
+      middlewares:
+        - name: strip-api-prefix
+          namespace: mcp-platform
+      services:
+        - name: mcp-proxy
+          port: 8000
+
+    # API traffic: strip /api prefix, validate JWT, forward to backend
+    - match: Host(`your-gateway.example.com`) && PathPrefix(`/api`)
+      kind: Rule
+      priority: 20
+      middlewares:
+        - name: strip-api-prefix
+          namespace: mcp-platform
+        - name: keycloak-jwt-auth
+          namespace: mcp-platform
+      services:
+        - name: mcp-proxy
+          port: 8000
+
+    # Frontend: everything else serves the React SPA
+    - match: Host(`your-gateway.example.com`)
+      kind: Rule
+      priority: 10
+      services:
+        - name: mcp-frontend
+          port: 80
+  tls:
+    certResolver: dnsresolver

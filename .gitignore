@@ -1,0 +1,27 @@
+# Credentials
+gitlabtoken
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Kubernetes secrets (use *.example.yaml templates instead)
+k8s/**/secrets.yaml

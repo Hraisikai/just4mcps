@@ -1,0 +1,51 @@
+services:
+  gateway:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    depends_on:
+      surrealdb:
+        condition: service_healthy
+    restart: unless-stopped
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./backend/app
+          target: /app/app
+
+  frontend:
+    build:
+      context: ./frontend
+      target: dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - VITE_KEYCLOAK_URL=https://your-keycloak.example.com
+      - VITE_KEYCLOAK_REALM=your-realm
+      - VITE_KEYCLOAK_CLIENT_ID=mcp-gateway
+    depends_on:
+      - gateway
+
+  surrealdb:
+    image: surrealdb/surrealdb:latest
+    command: start --log trace --user root --pass changeme file:/data/db.surql
+    ports:
+      - "8001:8000"  # exposed on 8001 to avoid conflict with gateway
+    volumes:
+      - surreal_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  surreal_data:

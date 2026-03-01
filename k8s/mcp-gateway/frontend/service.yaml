@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-frontend
+  namespace: mcp-platform
+  labels:
+    app: mcp-frontend
+spec:
+  selector:
+    app: mcp-frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+  type: ClusterIP

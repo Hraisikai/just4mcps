@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+dist/
+*.egg-info/
+
+# Env
+.env
+!.env.example
+
+# Node
+node_modules/
+frontend/dist/
+
+# SurrealDB local
+*.surql
+
+# IDE
+.vscode/
+.idea/
+*.swp
