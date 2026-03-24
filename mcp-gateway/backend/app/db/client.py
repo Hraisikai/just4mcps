@@ -141,6 +141,7 @@ class _DB:
             or "close frame" in exc_str
             or "websocket" in exc_str.lower()
             or "connection" in exc_type.lower() and "closed" in exc_str
+            or ("anonymous" in exc_str and "not allowed" in exc_str)
         )
 
     async def query(self, sql: str, vars: dict | None = None):
